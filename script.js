@@ -93,7 +93,9 @@ class HotelAttendanceApp {
         this.currentUser = response.user;
 
         this.showAlert('✅ Login berhasil!', 'success');
-        this.showDashboard();
+        setTimeout(() => {
+          this.showDashboard();
+        }, 500);
       } else {
         this.showAlert(`❌ ${response.message || 'Login gagal'}`, 'error');
       }
@@ -113,8 +115,13 @@ class HotelAttendanceApp {
     const user = localStorage.getItem('hotelUser');
 
     if (token && user) {
-      this.currentUser = JSON.parse(user);
-      this.showDashboard();
+      try {
+        this.currentUser = JSON.parse(user);
+        this.showDashboard();
+      } catch (err) {
+        console.error('Error parsing user:', err);
+        this.showLogin();
+      }
     } else {
       this.showLogin();
     }
@@ -124,16 +131,27 @@ class HotelAttendanceApp {
    * Show login section
    */
   showLogin() {
-    document.getElementById('login-section').classList.remove('hidden');
-    document.getElementById('main-dashboard').classList.add('hidden');
+    const loginSection = document.getElementById('login-section');
+    const mainDashboard = document.getElementById('main-dashboard');
+    
+    if (loginSection) loginSection.classList.remove('hidden');
+    if (mainDashboard) mainDashboard.classList.add('hidden');
+    
+    // Clear form
+    const form = document.getElementById('login-form');
+    if (form) form.reset();
   }
 
   /**
    * Show dashboard
    */
   showDashboard() {
-    document.getElementById('login-section').classList.add('hidden');
-    document.getElementById('main-dashboard').classList.remove('hidden');
+    const loginSection = document.getElementById('login-section');
+    const mainDashboard = document.getElementById('main-dashboard');
+    
+    if (loginSection) loginSection.classList.add('hidden');
+    if (mainDashboard) mainDashboard.classList.remove('hidden');
+    
     this.updateUserInfo();
     this.loadPage('home');
   }
@@ -143,13 +161,17 @@ class HotelAttendanceApp {
    */
   updateUserInfo() {
     if (this.currentUser) {
-      document.getElementById('user-name').textContent = this.currentUser.name || 'User';
-      document.getElementById('user-role').textContent = this.currentUser.role || 'Employee';
+      const userNameEl = document.getElementById('user-name');
+      const userRoleEl = document.getElementById('user-role');
+      const avatarEl = document.getElementById('user-avatar');
       
-      // Set avatar with first letter
-      const avatar = document.getElementById('user-avatar');
-      const firstLetter = (this.currentUser.name || 'U').charAt(0).toUpperCase();
-      avatar.textContent = firstLetter;
+      if (userNameEl) userNameEl.textContent = this.currentUser.name || 'User';
+      if (userRoleEl) userRoleEl.textContent = this.currentUser.role || 'Employee';
+      
+      if (avatarEl) {
+        const firstLetter = (this.currentUser.name || 'U').charAt(0).toUpperCase();
+        avatarEl.textContent = firstLetter;
+      }
     }
   }
 
@@ -176,6 +198,8 @@ class HotelAttendanceApp {
    */
   async loadPage(page) {
     const contentArea = document.getElementById('content-area');
+    if (!contentArea) return;
+    
     contentArea.innerHTML = '<div class="text-center text-white">⏳ Memuat...</div>';
 
     switch (page) {
@@ -201,9 +225,18 @@ class HotelAttendanceApp {
    */
   async renderHome() {
     const contentArea = document.getElementById('content-area');
+    if (!contentArea) return;
     
     try {
-      const response = await HotelAPI.attendance.getTodayStatus();
+      // Mock data untuk demo (karena API mungkin belum ready)
+      const response = {
+        clockIn: '08:00 AM',
+        clockOut: null,
+        workingHours: '-',
+      };
+      
+      // Jika ingin menggunakan API, uncomment:
+      // const response = await HotelAPI.attendance.getTodayStatus();
       
       let statusHtml = `
         <div class="space-y-6">
@@ -250,6 +283,7 @@ class HotelAttendanceApp {
       
       contentArea.innerHTML = statusHtml;
     } catch (err) {
+      console.error('Error rendering home:', err);
       contentArea.innerHTML = `<div class="text-red-300">❌ Error: ${err.message}</div>`;
     }
   }
@@ -259,6 +293,7 @@ class HotelAttendanceApp {
    */
   async renderAttendance() {
     const contentArea = document.getElementById('content-area');
+    if (!contentArea) return;
     
     contentArea.innerHTML = `
       <div class="space-y-6">
@@ -270,10 +305,10 @@ class HotelAttendanceApp {
           </div>
           
           <div class="space-y-3">
-            <button onclick="app.openCamera('clockIn')" class="w-full py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition">
+            <button onclick="app.clockInAction()" class="w-full py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition">
               ✅ Clock In dengan Foto
             </button>
-            <button onclick="app.openCamera('clockOut')" class="w-full py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition">
+            <button onclick="app.clockOutAction()" class="w-full py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition">
               ❌ Clock Out dengan Foto
             </button>
           </div>
@@ -291,15 +326,39 @@ class HotelAttendanceApp {
     // Get location
     try {
       const locationInfo = await initLocationServices();
-      const locationHtml = `
-        <p><strong>Lat:</strong> ${locationInfo.latitude.toFixed(6)}</p>
-        <p><strong>Lng:</strong> ${locationInfo.longitude.toFixed(6)}</p>
-        <p><strong>Akurasi:</strong> ${locationInfo.accuracy}</p>
-      `;
-      document.getElementById('location-info').innerHTML = locationHtml;
+      if (locationInfo && locationInfo.success) {
+        const locationHtml = `
+          <p><strong>Lat:</strong> ${locationInfo.latitude.toFixed(6)}</p>
+          <p><strong>Lng:</strong> ${locationInfo.longitude.toFixed(6)}</p>
+          <p><strong>Akurasi:</strong> ${locationInfo.accuracy}</p>
+        `;
+        const locEl = document.getElementById('location-info');
+        if (locEl) locEl.innerHTML = locationHtml;
+      } else {
+        const locEl = document.getElementById('location-info');
+        if (locEl) locEl.innerHTML = '<p class="text-yellow-300">⚠️ Lokasi tidak tersedia</p>';
+      }
     } catch (err) {
-      document.getElementById('location-info').innerHTML = `<p class="text-red-300">❌ ${err.message}</p>`;
+      console.error('Location error:', err);
+      const locEl = document.getElementById('location-info');
+      if (locEl) locEl.innerHTML = `<p class="text-red-300">❌ ${err.message}</p>`;
     }
+  }
+
+  /**
+   * Clock In Action
+   */
+  async clockInAction() {
+    this.showAlert('📸 Fitur Clock In sedang dikembangkan', 'info');
+    // Nanti implement dengan camera.js
+  }
+
+  /**
+   * Clock Out Action
+   */
+  async clockOutAction() {
+    this.showAlert('📸 Fitur Clock Out sedang dikembangkan', 'info');
+    // Nanti implement dengan camera.js
   }
 
   /**
@@ -307,10 +366,22 @@ class HotelAttendanceApp {
    */
   async renderHistory() {
     const contentArea = document.getElementById('content-area');
+    if (!contentArea) return;
+    
     contentArea.innerHTML = '<div class="text-white">⏳ Memuat riwayat...</div>';
 
     try {
-      const response = await HotelAPI.attendance.getHistory({ limit: 10 });
+      // Mock data untuk demo
+      const response = {
+        data: [
+          { date: '2026-05-08', clockIn: '08:00 AM', clockOut: '05:00 PM', status: 'present' },
+          { date: '2026-05-07', clockIn: '08:15 AM', clockOut: '05:30 PM', status: 'present' },
+          { date: '2026-05-06', clockIn: '08:00 AM', clockOut: '05:00 PM', status: 'present' },
+        ]
+      };
+      
+      // Jika ingin menggunakan API, uncomment:
+      // const response = await HotelAPI.attendance.getHistory({ limit: 10 });
       
       let historyHtml = `
         <h2 class="text-2xl font-bold text-white mb-6">📋 Riwayat Absensi</h2>
@@ -338,6 +409,7 @@ class HotelAttendanceApp {
       historyHtml += '</div>';
       contentArea.innerHTML = historyHtml;
     } catch (err) {
+      console.error('History error:', err);
       contentArea.innerHTML = `<div class="text-red-300">❌ Error: ${err.message}</div>`;
     }
   }
@@ -347,6 +419,7 @@ class HotelAttendanceApp {
    */
   async renderProfile() {
     const contentArea = document.getElementById('content-area');
+    if (!contentArea) return;
     
     const profileHtml = `
       <div class="space-y-6">
@@ -381,23 +454,10 @@ class HotelAttendanceApp {
    */
   async quickAction(action) {
     if (action === 'clockIn') {
-      this.openCamera('clockIn');
+      this.clockInAction();
     } else if (action === 'clockOut') {
-      this.openCamera('clockOut');
+      this.clockOutAction();
     }
-  }
-
-  /**
-   * Open camera
-   */
-  openCamera(action) {
-    if (typeof camera === 'undefined') {
-      this.showAlert('❌ Camera module tidak tersedia', 'error');
-      return;
-    }
-
-    this.showAlert(`📸 Camera dibuka untuk ${action === 'clockIn' ? 'Clock In' : 'Clock Out'}`, 'info');
-    // Implementation depends on camera.js
   }
 
   /**
@@ -407,7 +467,7 @@ class HotelAttendanceApp {
     const oldPassword = prompt('Masukkan password lama:');
     if (!oldPassword) return;
 
-    const newPassword = prompt('Masukkan password baru:');
+    const newPassword = prompt('Masukkan password baru (minimal 6 karakter):');
     if (!newPassword || newPassword.length < 6) {
       this.showAlert('❌ Password minimal 6 karakter', 'error');
       return;
@@ -424,7 +484,7 @@ class HotelAttendanceApp {
       if (response.success) {
         this.showAlert('✅ Password berhasil diubah', 'success');
       } else {
-        this.showAlert(`❌ ${response.message}`, 'error');
+        this.showAlert(`❌ ${response.message || 'Gagal mengubah password'}`, 'error');
       }
     });
   }
@@ -435,8 +495,7 @@ class HotelAttendanceApp {
   logout() {
     if (!confirm('Yakin ingin logout?')) return;
 
-    localStorage.removeItem('hotelToken');
-    localStorage.removeItem('hotelUser');
+    HotelAPI.utils.clearAllData();
     this.currentUser = null;
     this.showLogin();
     this.showAlert('✅ Logout berhasil', 'success');
