@@ -1,159 +1,143 @@
 // ============================================================
-// HOSPITALITY ATTENDANCE SYSTEM - API Manager
-// File: api.js
+// api.js - API Connection Manager
+// Hotel Attendance System
 // ============================================================
 // INSTRUKSI SETUP:
-// 1. Deploy kode.gs di Google Apps Script sebagai Web App
-//    (Execute as: Me | Who has access: Anyone)
-// 2. Copy URL deployment (format: https://script.google.com/macros/s/xxxx/exec)
-// 3. Paste URL tersebut ke BASE_URL di bawah ini
+// 1. Deploy kode.gs sebagai Web App di Google Apps Script
+// 2. Salin URL deployment (format: https://script.google.com/macros/s/XXXX/exec)
+// 3. Ganti nilai BASE_URL di bawah ini dengan URL tersebut
 // ============================================================
 
 const API_CONFIG = {
-  BASE_URL: 'https://script.google.com/macros/s/AKfycbx0StbSVZXiY0MZ_AfiCDqxqNzUSHSbnB_6BJgRCTpDr32Sf5JJJwHCesIcxkMZXn5a/exec',
-  // Contoh: 'https://script.google.com/macros/s/AKfycbxxxxxxxxxxx/exec'
-  TIMEOUT: 30000,
+  BASE_URL: 'https://script.google.com/macros/s/AKfycbxw4D9irBqL4V0Ywrh6KXviAIhbHn1jpdQR1VPPK-VnNiW9I_1he_4BA7OkOnQ5nmES/exec',
+  TIMEOUT: 30000, // 30 detik
 };
 
 // ============================================================
-// CORE REQUEST FUNCTION
+// CORE API CALLER
 // ============================================================
-async function apiRequest(method, params = {}, body = null) {
-  const url = new URL(API_CONFIG.BASE_URL);
 
-  if (method === 'GET') {
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== null) url.searchParams.append(k, v);
-    });
-  }
-
-  const options = {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    mode: 'cors',
-  };
-
-  if (method === 'POST' && body) {
-    options.body = JSON.stringify(body);
-  }
+async function apiCall(action, params = {}) {
+  const token = localStorage.getItem('hotelToken');
+  const body = { action, ...params };
+  if (token && !params.token) body.token = token;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
-  options.signal = controller.signal;
 
   try {
-    const response = await fetch(url.toString(), options);
+    const response = await fetch(API_CONFIG.BASE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain', // GAS requires text/plain to avoid CORS preflight
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+      mode: 'cors',
+    });
+
     clearTimeout(timeoutId);
 
-    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
 
     const data = await response.json();
     return data;
-  } catch (error) {
+
+  } catch (err) {
     clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      throw new Error('Request timeout. Periksa koneksi internet Anda.');
+    if (err.name === 'AbortError') {
+      return { success: false, message: 'Request timeout. Cek koneksi internet Anda.' };
     }
-    throw error;
+    return { success: false, message: 'Koneksi gagal: ' + err.message };
   }
 }
 
 // ============================================================
 // AUTH API
 // ============================================================
+
 const AuthAPI = {
-  login: (email, password) =>
-    apiRequest('POST', {}, { action: 'login', email, password }),
+  login: (email, password) => apiCall('login', { email, password }),
+  changePassword: (oldPassword, newPassword) =>
+    apiCall('changePassword', { oldPassword, newPassword }),
+};
 
-  changePassword: (userId, oldPassword, newPassword) =>
-    apiRequest('POST', {}, { action: 'changePassword', userId, oldPassword, newPassword }),
+// ============================================================
+// USER API
+// ============================================================
 
-  getServerTime: () =>
-    apiRequest('GET', { action: 'getServerTime' }),
+const UserAPI = {
+  getAll: () => apiCall('getUsers'),
+  create: (data) => apiCall('createUser', data),
+  update: (data) => apiCall('updateUser', data),
+  delete: (id) => apiCall('deleteUser', { id }),
 };
 
 // ============================================================
 // ATTENDANCE API
 // ============================================================
+
 const AttendanceAPI = {
-  clockIn: (userId, lat, lng, foto) =>
-    apiRequest('POST', {}, { action: 'clockIn', userId, lat, lng, foto }),
-
-  clockOut: (userId) =>
-    apiRequest('POST', {}, { action: 'clockOut', userId }),
-
-  getAttendance: (userId = null, dateFrom = null, dateTo = null) =>
-    apiRequest('GET', { action: 'getAttendance', userId, dateFrom, dateTo }),
-
-  getDashboardStats: () =>
-    apiRequest('GET', { action: 'getDashboardStats' }),
-
-  exportCSV: (dateFrom, dateTo) =>
-    apiRequest('GET', { action: 'exportCSV', dateFrom, dateTo }),
+  clockIn: (lat, lng, foto) => apiCall('clockIn', { lat, lng, foto }),
+  clockOut: (lat, lng, foto) => apiCall('clockOut', { lat, lng, foto }),
+  getTodayStatus: () => apiCall('getTodayStatus'),
+  getHistory: (params = {}) => apiCall('getAttendance', params),
 };
 
 // ============================================================
-// USERS API
+// SCHEDULE API
 // ============================================================
-const UsersAPI = {
-  getUsers: () =>
-    apiRequest('GET', { action: 'getUsers' }),
 
-  createUser: (data) =>
-    apiRequest('POST', {}, { action: 'createUser', ...data }),
-
-  updateUser: (data) =>
-    apiRequest('POST', {}, { action: 'updateUser', ...data }),
-
-  deleteUser: (id, adminEmail) =>
-    apiRequest('POST', {}, { action: 'deleteUser', id, adminEmail }),
+const ScheduleAPI = {
+  getAll: (params = {}) => apiCall('getSchedules', params),
+  create: (data) => apiCall('createSchedule', data),
+  update: (data) => apiCall('updateSchedule', data),
+  delete: (id) => apiCall('deleteSchedule', { id }),
 };
 
 // ============================================================
-// SCHEDULES API
+// REQUEST API
 // ============================================================
-const SchedulesAPI = {
-  getSchedules: (userId = null, date = null) =>
-    apiRequest('GET', { action: 'getSchedules', userId, date }),
 
-  createSchedule: (data) =>
-    apiRequest('POST', {}, { action: 'createSchedule', ...data }),
-
-  updateSchedule: (data) =>
-    apiRequest('POST', {}, { action: 'updateSchedule', ...data }),
-
-  deleteSchedule: (id, adminEmail) =>
-    apiRequest('POST', {}, { action: 'deleteSchedule', id, adminEmail }),
+const RequestAPI = {
+  submit: (tipe, detail, lampiran) => apiCall('submitRequest', { tipe, detail, lampiran }),
+  getAll: (params = {}) => apiCall('getRequests', params),
+  approve: (id) => apiCall('approveRequest', { id }),
+  reject: (id, alasan) => apiCall('rejectRequest', { id, alasan }),
 };
 
 // ============================================================
-// REQUESTS API
+// REPORT API
 // ============================================================
-const RequestsAPI = {
-  getRequests: (userId = null, status = null) =>
-    apiRequest('GET', { action: 'getRequests', userId, status }),
 
-  submitRequest: (userId, tipe, detail, lampiran = null) =>
-    apiRequest('POST', {}, { action: 'submitRequest', userId, tipe, detail, lampiran }),
-
-  approveRequest: (id, adminEmail) =>
-    apiRequest('POST', {}, { action: 'approveRequest', id, adminEmail }),
-
-  rejectRequest: (id, adminEmail) =>
-    apiRequest('POST', {}, { action: 'rejectRequest', id, adminEmail }),
+const ReportAPI = {
+  getDashboard: () => apiCall('getDashboard'),
+  getReport: (params = {}) => apiCall('getReport', params),
+  exportCSV: (params = {}) => apiCall('exportCSV', params),
 };
 
 // ============================================================
-// LOGS API
+// LOG API
 // ============================================================
-const LogsAPI = {
-  getLogs: () =>
-    apiRequest('GET', { action: 'getLogs' }),
+
+const LogAPI = {
+  getAll: (limit = 100) => apiCall('getLogs', { limit }),
 };
 
 // ============================================================
-// CHECK IF API IS CONFIGURED
+// EXPORT (available globally)
 // ============================================================
-function isAPIConfigured() {
-  return API_CONFIG.BASE_URL && API_CONFIG.BASE_URL !== 'PASTE_YOUR_GAS_WEB_APP_URL_HERE';
-}
+
+window.HotelAPI = {
+  call: apiCall,
+  auth: AuthAPI,
+  user: UserAPI,
+  attendance: AttendanceAPI,
+  schedule: ScheduleAPI,
+  request: RequestAPI,
+  report: ReportAPI,
+  log: LogAPI,
+  config: API_CONFIG,
+};
