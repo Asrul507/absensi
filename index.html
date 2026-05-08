@@ -1,1 +1,97 @@
-test
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hospitality Presence - Glass 3D</title>
+    <!-- Tailwind CSS untuk Layout Responsif -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <!-- Font Poppins -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 min-h-screen flex items-center justify-center p-4">
+
+    <!-- App Container -->
+    <div id="app" class="w-full max-w-md md:max-w-4xl min-h-[600px] glass-container rounded-3xl overflow-hidden flex flex-col md:flex-row transition-all duration-500">
+        
+        <!-- ==========================================
+             SECTION: LOGIN (Tampil Pertama Kali)
+             ========================================== -->
+        <div id="login-section" class="w-full flex flex-col justify-center p-8 animate-fade-in">
+            <div class="text-center mb-8">
+                <div class="inline-block p-4 rounded-full glass-icon mb-4 shadow-2xl">
+                    <i data-lucide="hotel" class="w-12 h-12 text-white"></i>
+                </div>
+                <h1 class="text-3xl font-bold text-white tracking-wider">PRESENCE PRO</h1>
+                <p class="text-blue-100 opacity-70">Hospitality Management System</p>
+            </div>
+            
+            <form id="login-form" class="space-y-6">
+                <div class="glass-input-group">
+                    <input type="email" id="email" placeholder="Email Hotel" required class="glass-input">
+                </div>
+                <div class="glass-input-group">
+                    <input type="password" id="password" placeholder="Password" required class="glass-input">
+                </div>
+                <button type="submit" class="w-full py-4 bg-white text-purple-900 font-bold rounded-2xl shadow-xl hover:scale-95 transition-all transform active:scale-90">
+                    MASUK KE SISTEM
+                </button>
+            </form>
+        </div>
+
+        <!-- ==========================================
+             SECTION: DASHBOARD (Setelah Login)
+             ========================================== -->
+        <div id="main-dashboard" class="hidden w-full flex flex-col animate-slide-up">
+            <!-- Navbar Atas -->
+            <nav class="p-6 border-b border-white border-opacity-10 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div id="user-avatar" class="w-10 h-10 rounded-full bg-white flex items-center justify-center font-bold text-purple-900 shadow-lg">?</div>
+                    <div>
+                        <h2 id="user-name" class="text-white font-semibold">Memuat...</h2>
+                        <span id="user-role" class="text-xs text-blue-200 opacity-60">Jabatan</span>
+                    </div>
+                </div>
+                <button id="logout-btn" class="p-2 glass-btn rounded-xl text-white">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
+            </nav>
+
+            <!-- Area Konten Dinamis -->
+            <div id="content-area" class="p-6 flex-grow overflow-y-auto min-h-[400px]">
+                <!-- Konten Menu akan dirender di sini oleh app.js -->
+            </div>
+
+            <!-- Navigasi Bawah (Mobile Friendly) -->
+            <div class="glass-nav flex justify-around p-4 m-4 rounded-2xl">
+                <button class="nav-item text-white opacity-50 active-nav" data-page="home">
+                    <i data-lucide="layout-dashboard"></i>
+                </button>
+                <button class="nav-item text-white opacity-50" data-page="attendance">
+                    <i data-lucide="camera"></i>
+                </button>
+                <button class="nav-item text-white opacity-50" data-page="history">
+                    <i data-lucide="history"></i>
+                </button>
+                <button class="nav-item text-white opacity-50" data-page="profile">
+                    <i data-lucide="user-cog"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modul Scripts (Pastikan urutan pemanggilan benar) -->
+    <script src="api.js"></script>
+    <script src="camera.js"></script>
+    <script src="location.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        // Inisialisasi Icon Lucide
+        lucide.createIcons();
+    </script>
+</body>
+</html>
