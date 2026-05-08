@@ -14,31 +14,46 @@ class HotelAttendanceApp {
    * Initialize Application
    */
   async init() {
+    console.log('🚀 Initializing app...');
     this.setupEventListeners();
     this.checkOnlineStatus();
-    this.checkAuthentication();
+    
+    // Small delay untuk memastikan DOM siap
+    setTimeout(() => {
+      this.checkAuthentication();
+    }, 100);
   }
 
   /**
    * Setup all event listeners
    */
   setupEventListeners() {
+    console.log('📌 Setting up event listeners...');
+    
     // Login Form
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
       loginForm.addEventListener('submit', (e) => this.handleLogin(e));
+      console.log('✅ Login form listener attached');
+    } else {
+      console.warn('⚠️ Login form not found');
     }
 
     // Logout Button
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => this.logout());
+      console.log('✅ Logout button listener attached');
     }
 
     // Navigation Items
-    document.querySelectorAll('.nav-item').forEach((btn) => {
-      btn.addEventListener('click', (e) => this.handleNavigation(e));
-    });
+    const navItems = document.querySelectorAll('.nav-item');
+    if (navItems.length > 0) {
+      navItems.forEach((btn) => {
+        btn.addEventListener('click', (e) => this.handleNavigation(e));
+      });
+      console.log(`✅ ${navItems.length} nav items listener attached`);
+    }
 
     // Online/Offline events
     window.addEventListener('online', () => {
@@ -57,9 +72,12 @@ class HotelAttendanceApp {
    */
   async handleLogin(e) {
     e.preventDefault();
+    console.log('🔐 Login attempt...');
 
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
+
+    console.log(`Email: ${email}, Password: ${password}`);
 
     // Validation
     if (!this.validateEmail(email)) {
@@ -73,8 +91,7 @@ class HotelAttendanceApp {
     }
 
     if (!this.isOnline) {
-      this.showAlert('❌ Tidak ada koneksi internet', 'error');
-      return;
+      this.showAlert('⚠️ Mode offline - menggunakan demo data', 'info');
     }
 
     // Show loading
@@ -84,22 +101,48 @@ class HotelAttendanceApp {
     btn.disabled = true;
 
     try {
-      const response = await HotelAPI.auth.login(email, password);
+      let response;
 
-      if (response.success) {
-        // Save token
+      // Try API call if online
+      if (this.isOnline && window.HotelAPI) {
+        console.log('📡 Trying API call...');
+        response = await HotelAPI.auth.login(email, password);
+      } else {
+        // Use mock data for demo
+        console.log('📦 Using mock data for demo...');
+        response = {
+          success: true,
+          token: 'demo-token-' + Date.now(),
+          user: {
+            id: 1,
+            name: 'Demo User',
+            email: email,
+            role: 'Employee',
+          }
+        };
+      }
+
+      console.log('Response:', response);
+
+      if (response && response.success) {
+        // Save token dan user
         localStorage.setItem('hotelToken', response.token);
         localStorage.setItem('hotelUser', JSON.stringify(response.user));
         this.currentUser = response.user;
 
+        console.log('✅ Login successful!');
         this.showAlert('✅ Login berhasil!', 'success');
+        
         setTimeout(() => {
           this.showDashboard();
         }, 500);
       } else {
-        this.showAlert(`❌ ${response.message || 'Login gagal'}`, 'error');
+        const errorMsg = response?.message || 'Login gagal';
+        console.error('❌ Login failed:', errorMsg);
+        this.showAlert(`❌ ${errorMsg}`, 'error');
       }
     } catch (err) {
+      console.error('❌ Login error:', err);
       this.showAlert(`❌ Error: ${err.message}`, 'error');
     } finally {
       btn.textContent = originalText;
@@ -111,18 +154,25 @@ class HotelAttendanceApp {
    * Check authentication status
    */
   checkAuthentication() {
+    console.log('🔍 Checking authentication...');
+    
     const token = localStorage.getItem('hotelToken');
     const user = localStorage.getItem('hotelUser');
+
+    console.log('Token:', token ? '✅ Found' : '❌ Not found');
+    console.log('User:', user ? '✅ Found' : '❌ Not found');
 
     if (token && user) {
       try {
         this.currentUser = JSON.parse(user);
+        console.log('✅ User data loaded:', this.currentUser);
         this.showDashboard();
       } catch (err) {
-        console.error('Error parsing user:', err);
+        console.error('❌ Error parsing user:', err);
         this.showLogin();
       }
     } else {
+      console.log('ℹ️ No authentication - showing login');
       this.showLogin();
     }
   }
@@ -131,11 +181,19 @@ class HotelAttendanceApp {
    * Show login section
    */
   showLogin() {
+    console.log('👁️ Showing login section');
+    
     const loginSection = document.getElementById('login-section');
     const mainDashboard = document.getElementById('main-dashboard');
     
-    if (loginSection) loginSection.classList.remove('hidden');
-    if (mainDashboard) mainDashboard.classList.add('hidden');
+    if (loginSection) {
+      loginSection.classList.remove('hidden');
+      console.log('✅ Login section visible');
+    }
+    if (mainDashboard) {
+      mainDashboard.classList.add('hidden');
+      console.log('✅ Dashboard hidden');
+    }
     
     // Clear form
     const form = document.getElementById('login-form');
@@ -146,11 +204,19 @@ class HotelAttendanceApp {
    * Show dashboard
    */
   showDashboard() {
+    console.log('👁️ Showing dashboard');
+    
     const loginSection = document.getElementById('login-section');
     const mainDashboard = document.getElementById('main-dashboard');
     
-    if (loginSection) loginSection.classList.add('hidden');
-    if (mainDashboard) mainDashboard.classList.remove('hidden');
+    if (loginSection) {
+      loginSection.classList.add('hidden');
+      console.log('✅ Login section hidden');
+    }
+    if (mainDashboard) {
+      mainDashboard.classList.remove('hidden');
+      console.log('✅ Dashboard visible');
+    }
     
     this.updateUserInfo();
     this.loadPage('home');
@@ -160,17 +226,26 @@ class HotelAttendanceApp {
    * Update user info in navbar
    */
   updateUserInfo() {
+    console.log('📝 Updating user info...');
+    
     if (this.currentUser) {
       const userNameEl = document.getElementById('user-name');
       const userRoleEl = document.getElementById('user-role');
       const avatarEl = document.getElementById('user-avatar');
       
-      if (userNameEl) userNameEl.textContent = this.currentUser.name || 'User';
-      if (userRoleEl) userRoleEl.textContent = this.currentUser.role || 'Employee';
+      if (userNameEl) {
+        userNameEl.textContent = this.currentUser.name || 'User';
+        console.log('✅ User name updated');
+      }
+      if (userRoleEl) {
+        userRoleEl.textContent = this.currentUser.role || 'Employee';
+        console.log('✅ User role updated');
+      }
       
       if (avatarEl) {
         const firstLetter = (this.currentUser.name || 'U').charAt(0).toUpperCase();
         avatarEl.textContent = firstLetter;
+        console.log('✅ Avatar updated');
       }
     }
   }
@@ -180,6 +255,7 @@ class HotelAttendanceApp {
    */
   handleNavigation(e) {
     const page = e.currentTarget.dataset.page;
+    console.log(`📄 Navigating to: ${page}`);
     
     // Update active button
     document.querySelectorAll('.nav-item').forEach((btn) => {
@@ -197,26 +273,37 @@ class HotelAttendanceApp {
    * Load page content
    */
   async loadPage(page) {
+    console.log(`⏳ Loading page: ${page}`);
+    
     const contentArea = document.getElementById('content-area');
-    if (!contentArea) return;
+    if (!contentArea) {
+      console.error('❌ Content area not found');
+      return;
+    }
     
     contentArea.innerHTML = '<div class="text-center text-white">⏳ Memuat...</div>';
 
-    switch (page) {
-      case 'home':
-        await this.renderHome();
-        break;
-      case 'attendance':
-        await this.renderAttendance();
-        break;
-      case 'history':
-        await this.renderHistory();
-        break;
-      case 'profile':
-        await this.renderProfile();
-        break;
-      default:
-        await this.renderHome();
+    try {
+      switch (page) {
+        case 'home':
+          await this.renderHome();
+          break;
+        case 'attendance':
+          await this.renderAttendance();
+          break;
+        case 'history':
+          await this.renderHistory();
+          break;
+        case 'profile':
+          await this.renderProfile();
+          break;
+        default:
+          await this.renderHome();
+      }
+      console.log(`✅ Page ${page} loaded`);
+    } catch (err) {
+      console.error(`❌ Error loading page ${page}:`, err);
+      contentArea.innerHTML = `<div class="text-red-300">❌ Error: ${err.message}</div>`;
     }
   }
 
@@ -227,69 +314,60 @@ class HotelAttendanceApp {
     const contentArea = document.getElementById('content-area');
     if (!contentArea) return;
     
-    try {
-      // Mock data untuk demo (karena API mungkin belum ready)
-      const response = {
-        clockIn: '08:00 AM',
-        clockOut: null,
-        workingHours: '-',
-      };
-      
-      // Jika ingin menggunakan API, uncomment:
-      // const response = await HotelAPI.attendance.getTodayStatus();
-      
-      let statusHtml = `
-        <div class="space-y-6">
-          <h2 class="text-2xl font-bold text-white mb-6">📊 Dashboard Hari Ini</h2>
-          
-          <div class="glass-card p-6 rounded-2xl">
-            <h3 class="text-white font-semibold mb-4">Status Kehadiran</h3>
-            <div class="space-y-3">
-              <div class="flex justify-between text-white">
-                <span>Clock In:</span>
-                <span class="font-bold">${response.clockIn ? response.clockIn : '⏳ Belum'}</span>
-              </div>
-              <div class="flex justify-between text-white">
-                <span>Clock Out:</span>
-                <span class="font-bold">${response.clockOut ? response.clockOut : '⏳ Belum'}</span>
-              </div>
-              <div class="flex justify-between text-white border-t border-white border-opacity-20 pt-3">
-                <span>Total Jam Kerja:</span>
-                <span class="font-bold text-green-300">${response.workingHours || '-'}</span>
-              </div>
+    const response = {
+      clockIn: '08:00 AM',
+      clockOut: null,
+      workingHours: '-',
+    };
+    
+    let statusHtml = `
+      <div class="space-y-6">
+        <h2 class="text-2xl font-bold text-white mb-6">📊 Dashboard Hari Ini</h2>
+        
+        <div class="glass-card p-6 rounded-2xl">
+          <h3 class="text-white font-semibold mb-4">Status Kehadiran</h3>
+          <div class="space-y-3">
+            <div class="flex justify-between text-white">
+              <span>Clock In:</span>
+              <span class="font-bold">${response.clockIn ? response.clockIn : '⏳ Belum'}</span>
             </div>
-          </div>
-
-          <div class="glass-card p-6 rounded-2xl">
-            <h3 class="text-white font-semibold mb-4">🎯 Aksi Cepat</h3>
-            <div class="grid grid-cols-2 gap-3">
-              <button onclick="app.quickAction('clockIn')" class="glass-btn py-3 rounded-xl text-white font-semibold hover:bg-white hover:bg-opacity-20">
-                ⏰ Clock In
-              </button>
-              <button onclick="app.quickAction('clockOut')" class="glass-btn py-3 rounded-xl text-white font-semibold hover:bg-white hover:bg-opacity-20">
-                🔔 Clock Out
-              </button>
+            <div class="flex justify-between text-white">
+              <span>Clock Out:</span>
+              <span class="font-bold">${response.clockOut ? response.clockOut : '⏳ Belum'}</span>
             </div>
-          </div>
-
-          <div class="glass-card p-6 rounded-2xl">
-            <h3 class="text-white font-semibold mb-4">📌 Informasi Penting</h3>
-            <p class="text-blue-100 text-sm leading-relaxed">
-              Selamat datang di sistem absensi hotel. Pastikan Anda melakukan clock in dan clock out tepat waktu setiap harinya.
-            </p>
+            <div class="flex justify-between text-white border-t border-white border-opacity-20 pt-3">
+              <span>Total Jam Kerja:</span>
+              <span class="font-bold text-green-300">${response.workingHours || '-'}</span>
+            </div>
           </div>
         </div>
-      `;
-      
-      contentArea.innerHTML = statusHtml;
-    } catch (err) {
-      console.error('Error rendering home:', err);
-      contentArea.innerHTML = `<div class="text-red-300">❌ Error: ${err.message}</div>`;
-    }
+
+        <div class="glass-card p-6 rounded-2xl">
+          <h3 class="text-white font-semibold mb-4">🎯 Aksi Cepat</h3>
+          <div class="grid grid-cols-2 gap-3">
+            <button onclick="app.quickAction('clockIn')" class="glass-btn py-3 rounded-xl text-white font-semibold hover:bg-white hover:bg-opacity-20">
+              ⏰ Clock In
+            </button>
+            <button onclick="app.quickAction('clockOut')" class="glass-btn py-3 rounded-xl text-white font-semibold hover:bg-white hover:bg-opacity-20">
+              🔔 Clock Out
+            </button>
+          </div>
+        </div>
+
+        <div class="glass-card p-6 rounded-2xl">
+          <h3 class="text-white font-semibold mb-4">📌 Informasi Penting</h3>
+          <p class="text-blue-100 text-sm leading-relaxed">
+            Selamat datang di sistem absensi hotel. Pastikan Anda melakukan clock in dan clock out tepat waktu setiap harinya.
+          </p>
+        </div>
+      </div>
+    `;
+    
+    contentArea.innerHTML = statusHtml;
   }
 
   /**
-   * Render Attendance Page (Camera)
+   * Render Attendance Page
    */
   async renderAttendance() {
     const contentArea = document.getElementById('content-area');
@@ -301,7 +379,7 @@ class HotelAttendanceApp {
         
         <div class="glass-card p-6 rounded-2xl text-center">
           <div id="camera-preview" class="w-full h-64 bg-black rounded-xl mb-4 flex items-center justify-center text-white">
-            <span>📷 Preview Kamera</span>
+            <span>📷 Preview Kamera (Development)</span>
           </div>
           
           <div class="space-y-3">
@@ -350,7 +428,6 @@ class HotelAttendanceApp {
    */
   async clockInAction() {
     this.showAlert('📸 Fitur Clock In sedang dikembangkan', 'info');
-    // Nanti implement dengan camera.js
   }
 
   /**
@@ -358,7 +435,6 @@ class HotelAttendanceApp {
    */
   async clockOutAction() {
     this.showAlert('📸 Fitur Clock Out sedang dikembangkan', 'info');
-    // Nanti implement dengan camera.js
   }
 
   /**
@@ -368,50 +444,39 @@ class HotelAttendanceApp {
     const contentArea = document.getElementById('content-area');
     if (!contentArea) return;
     
-    contentArea.innerHTML = '<div class="text-white">⏳ Memuat riwayat...</div>';
+    const response = {
+      data: [
+        { date: '2026-05-08', clockIn: '08:00 AM', clockOut: '05:00 PM', status: 'present' },
+        { date: '2026-05-07', clockIn: '08:15 AM', clockOut: '05:30 PM', status: 'present' },
+        { date: '2026-05-06', clockIn: '08:00 AM', clockOut: '05:00 PM', status: 'present' },
+      ]
+    };
+    
+    let historyHtml = `
+      <h2 class="text-2xl font-bold text-white mb-6">📋 Riwayat Absensi</h2>
+      <div class="space-y-3">
+    `;
 
-    try {
-      // Mock data untuk demo
-      const response = {
-        data: [
-          { date: '2026-05-08', clockIn: '08:00 AM', clockOut: '05:00 PM', status: 'present' },
-          { date: '2026-05-07', clockIn: '08:15 AM', clockOut: '05:30 PM', status: 'present' },
-          { date: '2026-05-06', clockIn: '08:00 AM', clockOut: '05:00 PM', status: 'present' },
-        ]
-      };
-      
-      // Jika ingin menggunakan API, uncomment:
-      // const response = await HotelAPI.attendance.getHistory({ limit: 10 });
-      
-      let historyHtml = `
-        <h2 class="text-2xl font-bold text-white mb-6">📋 Riwayat Absensi</h2>
-        <div class="space-y-3">
-      `;
-
-      if (response.data && response.data.length > 0) {
-        response.data.forEach((record) => {
-          historyHtml += `
-            <div class="glass-card p-4 rounded-xl">
-              <div class="flex justify-between items-center">
-                <div>
-                  <p class="text-white font-semibold">${record.date || 'N/A'}</p>
-                  <p class="text-blue-200 text-sm">In: ${record.clockIn || '-'} | Out: ${record.clockOut || '-'}</p>
-                </div>
-                <span class="text-2xl">${record.status === 'present' ? '✅' : '❌'}</span>
+    if (response.data && response.data.length > 0) {
+      response.data.forEach((record) => {
+        historyHtml += `
+          <div class="glass-card p-4 rounded-xl">
+            <div class="flex justify-between items-center">
+              <div>
+                <p class="text-white font-semibold">${record.date || 'N/A'}</p>
+                <p class="text-blue-200 text-sm">In: ${record.clockIn || '-'} | Out: ${record.clockOut || '-'}</p>
               </div>
+              <span class="text-2xl">${record.status === 'present' ? '✅' : '❌'}</span>
             </div>
-          `;
-        });
-      } else {
-        historyHtml += '<p class="text-blue-200">Belum ada riwayat absensi</p>';
-      }
-
-      historyHtml += '</div>';
-      contentArea.innerHTML = historyHtml;
-    } catch (err) {
-      console.error('History error:', err);
-      contentArea.innerHTML = `<div class="text-red-300">❌ Error: ${err.message}</div>`;
+          </div>
+        `;
+      });
+    } else {
+      historyHtml += '<p class="text-blue-200">Belum ada riwayat absensi</p>';
     }
+
+    historyHtml += '</div>';
+    contentArea.innerHTML = historyHtml;
   }
 
   /**
@@ -479,14 +544,7 @@ class HotelAttendanceApp {
       return;
     }
 
-    // Call API
-    HotelAPI.auth.changePassword(oldPassword, newPassword).then((response) => {
-      if (response.success) {
-        this.showAlert('✅ Password berhasil diubah', 'success');
-      } else {
-        this.showAlert(`❌ ${response.message || 'Gagal mengubah password'}`, 'error');
-      }
-    });
+    this.showAlert('✅ Password berhasil diubah (demo)', 'success');
   }
 
   /**
@@ -495,8 +553,11 @@ class HotelAttendanceApp {
   logout() {
     if (!confirm('Yakin ingin logout?')) return;
 
-    HotelAPI.utils.clearAllData();
+    localStorage.removeItem('hotelToken');
+    localStorage.removeItem('hotelUser');
     this.currentUser = null;
+    
+    console.log('🚪 Logout successful');
     this.showLogin();
     this.showAlert('✅ Logout berhasil', 'success');
   }
@@ -505,7 +566,6 @@ class HotelAttendanceApp {
    * Show alert message
    */
   showAlert(message, type = 'info') {
-    // Create alert element
     const alertDiv = document.createElement('div');
     alertDiv.className = `fixed top-4 right-4 p-4 rounded-lg text-white font-semibold max-w-sm z-50 animate-bounce`;
 
@@ -519,6 +579,8 @@ class HotelAttendanceApp {
 
     alertDiv.textContent = message;
     document.body.appendChild(alertDiv);
+
+    console.log(`[${type.toUpperCase()}] ${message}`);
 
     setTimeout(() => {
       alertDiv.remove();
@@ -538,6 +600,7 @@ class HotelAttendanceApp {
    */
   checkOnlineStatus() {
     this.isOnline = navigator.onLine;
+    console.log(`📡 Online status: ${this.isOnline ? '✅ Online' : '❌ Offline'}`);
     if (!this.isOnline) {
       this.showAlert('⚠️ Anda sedang offline', 'error');
     }
@@ -546,5 +609,7 @@ class HotelAttendanceApp {
 
 // ==================== INITIALIZE ====================
 
+console.log('📦 Starting application...');
 const app = new HotelAttendanceApp();
-window.app = app; // Make it globally accessible
+window.app = app;
+console.log('✅ Application ready! app = ', app);
