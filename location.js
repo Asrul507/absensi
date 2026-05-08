@@ -1,249 +1,203 @@
 // ============================================================
-// location.js - Geolocation Module
+// location.js - Location & GPS Handler
 // Hotel Attendance System
 // ============================================================
 
-const LocationModule = (() => {
-  // ============================================================
-  // HOTEL COORDINATES (Override via API_CONFIG or set here)
-  // ============================================================
-  const HOTEL_CONFIG = {
-    lat: -6.200000,    // ← Ganti dengan latitude hotel Anda
-    lng: 106.816666,   // ← Ganti dengan longitude hotel Anda
-    radius: 50,        // radius dalam meter
-    name: 'Hotel Lokasi Kerja',
-  };
-
-  let lastPosition = null;
-  let watchId = null;
-
-  // ============================================================
-  // HAVERSINE FORMULA
-  // Menghitung jarak antara dua titik koordinat dalam meter
-  // ============================================================
-
-  function haversineDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371000; // Radius bumi dalam meter
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2)
-      + Math.cos(φ1) * Math.cos(φ2)
-      * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // jarak dalam meter
+class LocationManager {
+  constructor() {
+    this.currentPosition = null;
+    this.watchId = null;
+    this.isWatching = false;
   }
 
-  // ============================================================
-  // CHECK IF USER IS WITHIN RADIUS
-  // ============================================================
+  /**
+   * Get current position once
+   */
+  async getCurrentPosition(options = {}) {
+    const {
+      enableHighAccuracy = true,
+      timeout = 10000,
+      maximumAge = 0,
+    } = options;
 
-  function isWithinRadius(userLat, userLng, config = HOTEL_CONFIG) {
-    const distance = haversineDistance(userLat, userLng, config.lat, config.lng);
-    return {
-      isValid: distance <= config.radius,
-      distance: Math.round(distance),
-      maxRadius: config.radius,
-    };
-  }
-
-  // ============================================================
-  // GET CURRENT POSITION (Promise-based)
-  // ============================================================
-
-  function getCurrentPosition(highAccuracy = true) {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error('Geolocation tidak didukung oleh browser ini'));
+        reject(new Error('Geolocation tidak didukung oleh browser'));
         return;
       }
 
-      const options = {
-        enableHighAccuracy: highAccuracy,
-        timeout: 15000,
-        maximumAge: 0,
-      };
-
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          lastPosition = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
+          this.currentPosition = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
             accuracy: position.coords.accuracy,
-            timestamp: position.timestamp,
+            timestamp: new Date(position.timestamp),
           };
-          resolve(lastPosition);
+          resolve(this.currentPosition);
         },
         (error) => {
-          let message = 'Gagal mendapatkan lokasi';
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              message = 'Izin lokasi ditolak. Aktifkan GPS di browser.';
-              break;
-            case error.POSITION_UNAVAILABLE:
-              message = 'Lokasi tidak tersedia. Pastikan GPS aktif.';
-              break;
-            case error.TIMEOUT:
-              message = 'Timeout mendapatkan lokasi. Coba lagi.';
-              break;
-          }
-          reject(new Error(message));
+          console.error('Geolocation error:', error);
+          reject(this.getLocationError(error));
         },
-        options
+        {
+          enableHighAccuracy,
+          timeout,
+          maximumAge,
+        }
       );
     });
   }
 
-  // ============================================================
-  // VALIDATE LOCATION FOR ATTENDANCE
-  // Returns: { valid, distance, lat, lng, message }
-  // ============================================================
+  /**
+   * Watch position changes (continuous)
+   */
+  watchPosition(callback, options = {}) {
+    const {
+      enableHighAccuracy = true,
+      timeout = 10000,
+      maximumAge = 0,
+    } = options;
 
-  async function validateAttendanceLocation() {
-    try {
-      const position = await getCurrentPosition(true);
-      const check = isWithinRadius(position.lat, position.lng);
-
-      return {
-        valid: check.isValid,
-        distance: check.distance,
-        maxRadius: check.maxRadius,
-        lat: position.lat,
-        lng: position.lng,
-        accuracy: position.accuracy,
-        message: check.isValid
-          ? `✓ Anda berada ${check.distance}m dari lokasi kerja`
-          : `✗ Anda berada ${check.distance}m dari lokasi kerja (maks. ${check.maxRadius}m)`,
-      };
-    } catch (err) {
-      return {
-        valid: false,
-        distance: null,
-        lat: null,
-        lng: null,
-        message: err.message,
-      };
+    if (!navigator.geolocation) {
+      console.error('Geolocation tidak didukung');
+      return;
     }
-  }
 
-  // ============================================================
-  // WATCH POSITION (continuous)
-  // ============================================================
-
-  function startWatch(onUpdate) {
-    if (!navigator.geolocation) return;
-    stopWatch();
-
-    watchId = navigator.geolocation.watchPosition(
+    this.watchId = navigator.geolocation.watchPosition(
       (position) => {
-        lastPosition = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
+        this.currentPosition = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
-          timestamp: position.timestamp,
+          timestamp: new Date(position.timestamp),
         };
-        const check = isWithinRadius(lastPosition.lat, lastPosition.lng);
-        if (onUpdate) onUpdate({ ...lastPosition, ...check });
+        this.isWatching = true;
+        callback(this.currentPosition);
       },
-      (err) => console.warn('Location watch error:', err),
-      { enableHighAccuracy: true, maximumAge: 5000 }
+      (error) => {
+        console.error('Watch position error:', error);
+        callback(null, this.getLocationError(error));
+      },
+      {
+        enableHighAccuracy,
+        timeout,
+        maximumAge,
+      }
     );
   }
 
-  function stopWatch() {
-    if (watchId !== null) {
-      navigator.geolocation.clearWatch(watchId);
-      watchId = null;
+  /**
+   * Stop watching position
+   */
+  stopWatching() {
+    if (this.watchId) {
+      navigator.geolocation.clearWatch(this.watchId);
+      this.watchId = null;
+      this.isWatching = false;
+      console.log('Stopped watching position');
     }
   }
 
-  // ============================================================
-  // UI COMPONENT: Location Status Widget
-  // ============================================================
+  /**
+   * Calculate distance between two coordinates (Haversine formula)
+   */
+  calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Earth radius in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
 
-  function createLocationWidget(container) {
-    const widget = document.createElement('div');
-    widget.className = 'location-widget';
-    widget.innerHTML = `
-      <div class="location-status checking">
-        <div class="loc-icon">
-          <div class="loc-pulse"></div>
-          <i data-lucide="map-pin"></i>
-        </div>
-        <div class="loc-info">
-          <span class="loc-label">Memeriksa lokasi...</span>
-          <span class="loc-detail" id="locDetail">Mohon aktifkan GPS</span>
-        </div>
-        <div class="loc-badge" id="locBadge">
-          <i data-lucide="loader-2" class="spinning"></i>
-        </div>
-      </div>
-      <div class="distance-bar" id="distanceBar" style="display:none">
-        <div class="distance-fill" id="distanceFill"></div>
-        <span class="distance-label" id="distanceLabel"></span>
-      </div>
-    `;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
 
-    if (container) container.appendChild(widget);
-    if (window.lucide) lucide.createIcons();
-    return widget;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c; // Distance in km
+
+    return {
+      km: distance,
+      meters: distance * 1000,
+    };
   }
 
-  function updateLocationWidget(widget, result) {
-    const statusEl = widget.querySelector('.location-status');
-    const detailEl = widget.querySelector('#locDetail');
-    const badgeEl = widget.querySelector('#locBadge');
-    const barEl = widget.querySelector('#distanceBar');
-    const fillEl = widget.querySelector('#distanceFill');
-    const labelEl = widget.querySelector('#distanceLabel');
-    const iconEl = widget.querySelector('.loc-icon');
-
-    if (!statusEl) return;
-
-    statusEl.className = 'location-status ' + (result.valid ? 'valid' : 'invalid');
-
-    if (detailEl) detailEl.textContent = result.message;
-
-    if (badgeEl) {
-      badgeEl.innerHTML = result.valid
-        ? '<i data-lucide="check-circle"></i>'
-        : '<i data-lucide="x-circle"></i>';
-    }
-
-    if (result.distance !== null && barEl) {
-      barEl.style.display = 'block';
-      const pct = Math.min(100, (result.distance / HOTEL_CONFIG.radius) * 100);
-      if (fillEl) {
-        fillEl.style.width = pct + '%';
-        fillEl.style.background = result.valid
-          ? 'linear-gradient(90deg, #10b981, #34d399)'
-          : 'linear-gradient(90deg, #ef4444, #f87171)';
-      }
-      if (labelEl) labelEl.textContent = `${result.distance}m / ${HOTEL_CONFIG.radius}m`;
-    }
-
-    if (window.lucide) lucide.createIcons();
+  /**
+   * Check if location is within geofence
+   */
+  isWithinGeofence(lat1, lon1, lat2, lon2, radiusKm = 0.5) {
+    const distance = this.calculateDistance(lat1, lon1, lat2, lon2);
+    return distance.km <= radiusKm;
   }
 
-  // ============================================================
-  // EXPORTS
-  // ============================================================
+  /**
+   * Format coordinates
+   */
+  formatCoordinates(latitude, longitude) {
+    return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+  }
 
-  return {
-    haversineDistance,
-    isWithinRadius,
-    getCurrentPosition,
-    validateAttendanceLocation,
-    startWatch,
-    stopWatch,
-    createLocationWidget,
-    updateLocationWidget,
-    getLastPosition: () => lastPosition,
-    config: HOTEL_CONFIG,
-  };
-})();
+  /**
+   * Handle geolocation errors
+   */
+  getLocationError(error) {
+    const errors = {
+      [error.PERMISSION_DENIED]: 'Izin lokasi ditolak. Silakan izinkan akses lokasi di pengaturan browser.',
+      [error.POSITION_UNAVAILABLE]: 'Informasi lokasi tidak tersedia.',
+      [error.TIMEOUT]: 'Request lokasi timeout. Coba lagi.',
+    };
 
-window.LocationModule = LocationModule;
+    return new Error(errors[error.code] || 'Error tidak diketahui');
+  }
+
+  /**
+   * Get current position with formatted output
+   */
+  async getFormattedPosition() {
+    try {
+      const position = await this.getCurrentPosition();
+      return {
+        success: true,
+        coordinates: this.formatCoordinates(position.latitude, position.longitude),
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracy: Math.round(position.accuracy) + ' m',
+        timestamp: position.timestamp,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: err.message,
+      };
+    }
+  }
+}
+
+// ==================== INITIALIZE ====================
+
+const location = new LocationManager();
+
+/**
+ * Initialize location services
+ * Call this when needed
+ */
+async function initLocationServices() {
+  try {
+    const result = await location.getFormattedPosition();
+    if (result.success) {
+      console.log('✅ Location initialized:', result);
+      return result;
+    } else {
+      console.error('❌ Location error:', result.error);
+      return null;
+    }
+  } catch (err) {
+    console.error('Location initialization error:', err);
+    return null;
+  }
+}
+
+// Make location globally accessible
+window.location = location;
+window.initLocationServices = initLocationServices;
