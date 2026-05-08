@@ -176,7 +176,7 @@ class LocationManager {
 
 // ==================== INITIALIZE ====================
 
-const location = new LocationManager();
+const locationManager = new LocationManager();
 
 /**
  * Initialize location services
@@ -184,7 +184,7 @@ const location = new LocationManager();
  */
 async function initLocationServices() {
   try {
-    const result = await location.getFormattedPosition();
+    const result = await locationManager.getFormattedPosition();
     if (result.success) {
       console.log('✅ Location initialized:', result);
       return result;
@@ -198,6 +198,6 @@ async function initLocationServices() {
   }
 }
 
-// Make location globally accessible
-window.location = location;
+// Make locationManager globally accessible (NOT window.location to avoid conflict with browser API)
+window.locationManager = locationManager;
 window.initLocationServices = initLocationServices;
